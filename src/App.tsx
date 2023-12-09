@@ -6,6 +6,7 @@ import './App.css';
 interface IState {
   data: ServerRespond[],
   showGraph: boolean,
+  getHistoricalData: boolean
 }
 
 class App extends Component<{}, IState> {
@@ -14,6 +15,7 @@ class App extends Component<{}, IState> {
     this.state = {
       data: [],
       showGraph: false,
+      getHistoricalData: true
     };
   }
 
@@ -25,19 +27,22 @@ class App extends Component<{}, IState> {
 
   getDataFromServer() {
     let x = 0;
+    const intervalDuration = 10; // Increase interval to 1000 ms
     const interval = setInterval(() => {
       DataStreamer.getData((serverResponds: ServerRespond[]) => {
         this.setState({
           data: serverResponds,
           showGraph: true,
+          getHistoricalData: false
         });
-      });
+      }, this.state.getHistoricalData ? "True" : "False");
       x++;
-      if (x > 1000) {
+      if (x > 1000) { // Adjust based on your needs
         clearInterval(interval);
       }
-    }, 100);
-  }
+    }, intervalDuration);
+}
+
 
   render() {
     return (

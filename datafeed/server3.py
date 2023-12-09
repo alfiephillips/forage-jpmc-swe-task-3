@@ -243,6 +243,7 @@ class App(object):
         self._rt_start = datetime.now()
         self._sim_start, _, _  = next(self._data_1)
         self.read_10_first_lines()
+        self.avg_historical_ratio = 0
 
     @property
     def _current_book_1(self):
@@ -267,46 +268,89 @@ class App(object):
                 next(self._data_1)
                 next(self._data_2)
 
+    def get_historical_ratio(self):
+        current_date = datetime.now()   
+        one_year_ago = current_date - timedelta(days=365)
+        milliseconds = (one_year_ago.timestamp()) * 1000
+
+
+        counter = 0
+
+        # Reset the data iterators to start from the beginning
+        self.data_1 = order_book(read_csv(), self._book_1, 'ABC')
+        self.data_2 = order_book(read_csv(), self._book_2, 'DEF')
+
+        avg_ratio = 0
+        counter = 0
+
+        while True:
+            try:
+                t1, bids1, asks1 = next(self.data_1)
+                t2, bids2, asks2 = next(self.data_2)
+                t = max(t1, t2)
+
+                if t.timestamp() * 1000 > milliseconds:
+                    counter += 1
+                    ratio = max(asks1[0][0], asks2[0][0]) / min(asks1[0][0], asks2[0][0])
+                    avg_ratio += ratio
+                        
+            except:
+                break
+
+        if counter == 0:
+            return 0
+        else:
+            return avg_ratio / counter 
+        
     @route('/query')
     def handle_query(self, x):
         """ Takes no arguments, and yields the current top of the book;  the
             best bid and ask and their sizes
         """
         try:
-            t1, bids1, asks1 = next(self._current_book_1)
-            t2, bids2, asks2 = next(self._current_book_2)
+            time1, set_bids1, set_asks1 = next(self._current_book_1)
+            time2, set_bids2, set_asks2 = next(self._current_book_2)
         except Exception as e:
             print ("error getting stocks...reinitalizing app")
             self.__init__()
-            t1, bids1, asks1 = next(self._current_book_1)
-            t2, bids2, asks2 = next(self._current_book_2)
-        t = t1 if t1 > t2 else t2
-        print ('Query received @ t%s' % t)
+            time1, set_bids1, set_asks1 = next(self._current_book_1)
+            time2, set_bids2, set_asks2 = next(self._current_book_2)
+
+        time = max(time1, time2)
+        print ('Query received @ t%s' % time)
+
+        should_get_ratio = x.get("get-historical-ratio")
+        avg_historical_ratio = 0
+
+        if should_get_ratio == "True":
+            self.avg_historical_ratio = self.get_historical_ratio()
+
         return [{
             'id': x and x.get('id', None),
             'stock': 'ABC',
-            'timestamp': str(t),
-            'top_bid': bids1 and {
-                'price': bids1[0][0],
-                'size': bids1[0][1]
+            "historical_ratio": self.avg_historical_ratio,
+            'timestamp': str(time),
+            'top_bid': set_bids1 and {
+                'price': set_bids1[0][0],
+                'size': set_bids1[0][1]
             },
-            'top_ask': asks1 and {
-                'price': asks1[0][0],
-                'size': asks1[0][1]
+            'top_ask': set_asks1 and {
+                'price': set_asks1[0][0],
+                'size': set_asks1[0][1]
             }
         },
         {
             'id': x and x.get('id', None),
             'stock': 'DEF',
-            'timestamp': str(t),
-            'top_bid': bids2 and {
-                'price': bids2[0][0],
-                'size': bids2[0][1]
+            'timestamp': str(time),
+            'top_bid': set_bids2 and {
+                'price': set_bids2[0][0],
+                'size': set_bids2[0][1]
             },
-            'top_ask': asks2 and {
-                'price': asks2[0][0],
-                'size': asks2[0][1]
-            }
+            'top_ask': set_asks2 and {
+                'price': set_asks2[0][0],
+                'size': set_asks2[0][1]
+            },
         }]
 
 ################################################################################
